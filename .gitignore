@@ -1,0 +1,14 @@
+# Python
+**/venv/
+**/*.pyc
+**/__pycache__/
+backend/.env
+# Node
+**/node_modules/
+frontend/.env
+frontend/build/
+whatsapp_bot/.env
+whatsapp_bot/session.json # atau nama file sesi Baileys Anda
+# OS generated files
+.DS_Store
+Thumbs.db
