@@ -51,6 +51,7 @@ Aplikasi POS sederhana untuk mengelola stok barang, harga, transaksi penjualan, 
 
 ## Struktur Proyek
 
+```plaintext
 pos/
 ├── backend/
 │   ├── app/
@@ -148,6 +149,7 @@ pos/
 │
 └── README.md                           # README utama proyek
 └── .gitignore                          # Gitignore global
+```
 
 ## Prasyarat
 
