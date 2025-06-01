@@ -5,4 +5,5 @@ sqlalchemy       # Jika menggunakan ORM
 python-dotenv
 passlib[bcrypt]
 python-jose[cryptography]
+python-multipart # Diperlukan untuk OAuth2PasswordRequestForm di router auth nanti
 # tambahkan library lain yang dibutuhkan
