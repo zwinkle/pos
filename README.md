@@ -199,7 +199,7 @@ Sangat direkomendasikan untuk menggunakan lingkungan virtual untuk proyek Python
 4.  **Setup Database:**
     - Pastikan PostgreSQL server berjalan.
     - Buat database baru untuk aplikasi ini (misal: `pos_db`).
-    - Konfigurasikan koneksi database di file `backend/.env` (lihat bagian `.env`).
+    - Konfigurasikan koneksi database di file `backend/.env` (lihat bagian [`.env`](#variabel-lingkungan-env)).
     - Jika menggunakan SQLAlchemy, jalankan migrasi (jika ada, misal dengan Alembic) atau buat tabel secara manual/programatik.
 
 ### Frontend (React.js)
@@ -215,7 +215,7 @@ Sangat direkomendasikan untuk menggunakan lingkungan virtual untuk proyek Python
     yarn install
     ```
     `package.json` akan berisi dependensi seperti: `react`, `react-dom`, `react-router-dom`, `axios`, UI framework pilihan Anda (`@mui/material`, `antd`), charting library (`recharts`, `chart.js`).
-3.  Konfigurasikan URL API backend di file `frontend/.env` (lihat bagian `.env`).
+3.  Konfigurasikan URL API backend di file `frontend/.env` (lihat bagian [`.env`](#variabel-lingkungan-env)).
 
 ### WhatsApp Bot (Baileys)
 
