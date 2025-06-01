@@ -47,7 +47,7 @@ Aplikasi POS sederhana untuk mengelola stok barang, harga, transaksi penjualan, 
 - **State Management Frontend (opsional):** React Context API / Redux / Zustand
 - **Styling Frontend:** CSS Modules / Styled Components / Tailwind CSS (sesuai pilihan UI Framework)
 - **API Client Frontend:** Axios / Fetch API
-- **Charting:** Recharts
+- **Charting:** [Recharts 2.15.3](https://recharts.org/en-US)
 
 ## Struktur Proyek
 
