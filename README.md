@@ -40,14 +40,14 @@ Aplikasi POS sederhana untuk mengelola stok barang, harga, transaksi penjualan, 
 
 ## Teknologi yang Digunakan
 
-- **Backend:** Python 3.9+, FastAPI, Uvicorn
-- **Database:** PostgreSQL
-- **Frontend:** Node.js, React.js, [Nama React UI Framework/Template, misal: Material UI, Ant Design]
+- **Backend:** [Python 3.12.5](https://www.python.org/), [FastAPI 0.115.12](https://fastapi.tiangolo.com/), [Uvicorn 0.34.2](https://www.uvicorn.org/)
+- **Database:** [PostgreSQL 17.4.2](https://www.postgresql.org/)
+- **Frontend:** [Node.js 22.15.1](https://nodejs.org/en), [React.js 19.1.0](https://react.dev/), [Ant Design 5.25.4](https://ant.design/)
 - **WhatsApp Bot:** Node.js, Baileys
 - **State Management Frontend (opsional):** React Context API / Redux / Zustand
 - **Styling Frontend:** CSS Modules / Styled Components / Tailwind CSS (sesuai pilihan UI Framework)
 - **API Client Frontend:** Axios / Fetch API
-- **Charting:** Recharts / Chart.js
+- **Charting:** Recharts
 
 ## Struktur Proyek
 
