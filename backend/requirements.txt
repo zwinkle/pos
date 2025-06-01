@@ -6,4 +6,5 @@ python-dotenv
 passlib[bcrypt]
 python-jose[cryptography]
 python-multipart # Diperlukan untuk OAuth2PasswordRequestForm di router auth nanti
+shortuuid
 # tambahkan library lain yang dibutuhkan
