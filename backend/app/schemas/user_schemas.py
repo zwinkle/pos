@@ -3,7 +3,6 @@ from pydantic import BaseModel, EmailStr, Field # EmailStr bisa digunakan jika u
 from typing import Optional
 
 # Properti dasar yang dimiliki oleh model User, digunakan bersama
-
 class UserBase(BaseModel):
     username: str = Field(..., min_length=3, max_length=50, description="Username unik untuk login")
     full_name: Optional[str] = Field(None, max_length=100, description="Nama lengkap pengguna")
@@ -28,3 +27,7 @@ class Config:
 # Ini biasanya hanya digunakan secara internal oleh backend, bukan untuk respons API
 class UserInDB(User): # Atau bisa juga UserBase tergantung kebutuhan
     hashed_password: str
+
+class UserUpdate(UserBase):
+    password: Optional[str] = None
+    is_active: Optional[bool] = None

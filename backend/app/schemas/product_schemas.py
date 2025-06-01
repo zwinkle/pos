@@ -1,7 +1,8 @@
 # backend/app/schemas/product_schemas.py
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, ClassVar
 from datetime import datetime
+from .category_schemas import Category
 
 # Impor Category schema jika ingin menampilkannya secara nested
 # Anda perlu membuat category_schemas.py terlebih dahulu
@@ -52,5 +53,4 @@ class Config:
 
 # Skema untuk respons yang menyertakan detail kategori (setelah category_schemas dibuat)
 class ProductWithCategory(Product):
-    from .category_schemas import Category # Impor di sini untuk menghindari circular import level atas
     category: Optional[Category] = None

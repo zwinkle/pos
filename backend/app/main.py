@@ -3,6 +3,7 @@ import logging # Untuk logging
 import sys # Untuk sys.exit jika database gagal
 import datetime
 from datetime import timezone
+from sqlalchemy import text
 
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -146,7 +147,7 @@ async def health_check(db: Session = Depends(get_db)):
     db_status = "unknown"
     try:
         # Coba lakukan query sederhana ke database
-        result = db.execute("SELECT 1").scalar_one_or_none()
+        result = db.execute(text("SELECT 1")).scalar_one_or_none()
         if result == 1:
             db_status = "connected"
         else:
@@ -165,7 +166,7 @@ async def health_check(db: Session = Depends(get_db)):
         "database_connection": db_status,
         "project_name": settings.PROJECT_NAME,
         "version": settings.PROJECT_VERSION,
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.datetime.now(timezone.utc).isoformat()
     }
 
 # Untuk menjalankan dengan `python main.py` (biasanya Uvicorn dijalankan dari terminal)
