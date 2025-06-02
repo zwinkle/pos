@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.db.database import get_db
+from app.schemas.common_schemas import PaginatedResponse
 from app.schemas import user_schemas
 from app.crud import crud_user
 from app.core.security import get_current_active_user # Untuk proteksi endpoint
@@ -24,23 +25,26 @@ router = APIRouter()
 # raise HTTPException(status_code=400, detail="Username already registered")
 # return crud_user.create_user(db=db, user=user_in)
 
-@router.get("/", response_model=List[user_schemas.User], tags=["Users"])
+@router.get("/", response_model=PaginatedResponse[user_schemas.User], tags=["Users"]) # Update response_model
 def read_users(
         skip: int = 0,
-        limit: int = Query(default=100, ge=1, le=200), # Batasi limit untuk performa
+        limit: int = Query(default=100, ge=1, le=200),
         db: Session = Depends(get_db),
-        current_user: user_schemas.User = Depends(get_current_active_user) # Proteksi, mungkin hanya admin
+        current_user: user_schemas.User = Depends(get_current_active_user)
     ):
     """
-    Mendapatkan daftar semua user.
+    Mendapatkan daftar semua user dengan pagination.
     (Sebaiknya diproteksi hanya untuk admin)
     """
-    # Contoh proteksi berdasarkan peran (jika peran ada di token/user object):
     if current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
-    users = crud_user.get_users(db, skip=skip, limit=limit)
+    
+    users_result = crud_user.get_users(db, skip=skip, limit=limit) # CRUD mengembalikan dict
 
-    return users
+    return PaginatedResponse[user_schemas.User](
+        total=users_result["total"],
+        data=users_result["data"]
+    )
 
 @router.get("/{user_id}", response_model=user_schemas.User, tags=["Users"])
 def read_user_by_id(

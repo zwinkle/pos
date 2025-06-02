@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.db.database import get_db
+from app.schemas.common_schemas import PaginatedResponse
 from app.schemas import product_schemas # Menggunakan ProductWithCategory untuk detail
 from app.crud import crud_product, crud_category # Untuk validasi category_id
 from app.core.security import get_current_active_user
@@ -31,49 +32,56 @@ def create_new_product(
     except ValueError as e: # Tangani error dari CRUD (misal, SKU duplikat)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-@router.get("/", response_model=List[product_schemas.ProductWithCategory], tags=["Products"])
+@router.get("/", response_model=PaginatedResponse[product_schemas.ProductWithCategory], tags=["Products"])
 def read_all_products(
         skip: int = 0,
-        limit: int = Query(default=50, ge=1, le=200),
+        limit: int = Query(default=50, ge=1, le=200), # Default limit di OpenAPI Anda 50, saya pakai 50
         search: Optional[str] = None,
         category_id: Optional[int] = None,
         only_active: bool = True,
         db: Session = Depends(get_db)
     ):
-    """
-    Mendapatkan daftar semua produk dengan filter dan paginasi.
-    Mengembalikan produk dengan detail kategori.
-    """
-    products = crud_product.get_products(
+    result = crud_product.get_products( # crud_product.get_products mengembalikan dict {"total": N, "data": [...]}
         db,
         skip=skip,
         limit=limit,
         search=search,
         category_id=category_id,
         only_active=only_active,
-        load_category=True # Memuat detail kategori
+        load_category=True # Penting agar sesuai dengan ProductWithCategory
     )
-
-    return products
+    return PaginatedResponse[product_schemas.ProductWithCategory]( # Buat instance PaginatedResponse
+        total=result["total"],
+        data=result["data"]
+    )
 
 @router.get("/suggest", response_model=List[product_schemas.Product], tags=["Products"])
-def suggest_products_for_bot(
-        query: str = Query(..., min_length=1),
-        limit: int = Query(default=5, ge=1, le=10),
+def suggest_products_for_bot( # Anda bisa pakai nama fungsi ini
+        query: str = Query(..., min_length=1, description="Search query for product name or SKU"),
+        limit: int = Query(default=10, ge=1, le=20, description="Maximum number of suggestions to return"), # Naikkan batas jika perlu
         db: Session = Depends(get_db)
-        # Pertimbangkan API Key auth untuk endpoint bot jika tidak ingin token user biasa
+        # Untuk endpoint ini, Anda mungkin tidak memerlukan autentikasi user (get_current_active_user)
+        # jika bot akan memanggilnya dengan API Key terpisah, atau jika ini juga dipakai oleh UI tanpa login.
+        # Jika tetap ingin diproteksi dengan login user, tambahkan:
+        # current_user: User = Depends(get_current_active_user)
     ):
     """
-    Endpoint untuk saran produk (digunakan oleh bot atau autocomplete).
-    Hanya mengembalikan data produk dasar.
+    Endpoint untuk saran produk (digunakan oleh bot atau autocomplete frontend).
+    Mengembalikan daftar produk dasar (bukan PaginatedResponse).
     """
-    # Menggunakan fungsi get_products yang sudah ada dengan parameter search
-    # Mungkin perlu sedikit penyesuaian jika ingin logika pencarian yang berbeda
-    products = crud_product.get_products(
-        db, search=query, limit=limit, only_active=True, load_category=False
+    # Panggil fungsi CRUD yang mengembalikan list produk, yaitu get_product_suggestions
+    suggested_products_db = crud_product.get_product_suggestions(
+        db, 
+        query_str=query, 
+        limit=limit, 
+        only_active=True, # Biasanya hanya produk aktif yang disarankan
+        load_category=False # Kategori biasanya tidak perlu untuk suggestion list sederhana
     )
-
-    return products
+    
+    # FastAPI akan otomatis mengkonversi List[models_db.Product] (dari suggested_products_db)
+    # menjadi List[product_schemas.Product] (sesuai response_model)
+    # karena product_schemas.Product memiliki model_config = ConfigDict(from_attributes=True).
+    return suggested_products_db
 
 @router.get("/{product_id}", response_model=product_schemas.ProductWithCategory, tags=["Products"])
 def read_product_by_id(

@@ -1,6 +1,6 @@
 # backend/app/crud/crud_user.py
 from sqlalchemy.orm import Session
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 from app.db import models_db
 from app.schemas import user_schemas
@@ -16,10 +16,13 @@ def get_user_by_username(db: Session, username: str) -> Optional[models_db.User]
 
     return db.query(models_db.User).filter(models_db.User.username == username).first()
 
-def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[models_db.User]:
-    """Mengambil daftar user dengan paginasi."""
-
-    return db.query(models_db.User).offset(skip).limit(limit).all()
+def get_users(db: Session, skip: int = 0, limit: int = 100) -> Dict[str, Any]:
+    """Mengambil daftar user dengan paginasi dan total count."""
+    query = db.query(models_db.User)
+    total = query.count()
+    users_data = query.offset(skip).limit(limit).all()
+    
+    return {"total": total, "data": users_data}
 
 def create_user(db: Session, user: user_schemas.UserCreate) -> models_db.User:
     """Membuat user baru."""

@@ -2,7 +2,7 @@
 import logging # Untuk logging
 import sys # Untuk sys.exit jika database gagal
 import datetime
-from datetime import timezone
+from datetime import datetime, timezone
 from sqlalchemy import text
 
 from fastapi import FastAPI, Depends, HTTPException, status
@@ -60,7 +60,8 @@ origins = [
     "http://localhost:3000",    # Port default create-react-app
     "http://127.0.0.1:3000",
     # Tambahkan origin frontend produksi Anda di sini, contoh:
-    # "https://app.domainanda.com",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
 ]
 
 app.add_middleware(
@@ -166,7 +167,7 @@ async def health_check(db: Session = Depends(get_db)):
         "database_connection": db_status,
         "project_name": settings.PROJECT_NAME,
         "version": settings.PROJECT_VERSION,
-        "timestamp": datetime.datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 # Untuk menjalankan dengan `python main.py` (biasanya Uvicorn dijalankan dari terminal)

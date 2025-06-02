@@ -74,7 +74,7 @@ class Order(Base):
     user_id = Column(Integer, ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True) # Pengguna yg memproses
     total_amount = Column(Numeric(12, 2), nullable=False)
     payment_method = Column(String(50), nullable=True) # Cash, QRIS, Transfer
-    order_status = Column(String(20), default='completed', nullable=False) # completed, pending, cancelled
+    order_status = Column(String(20), default='pending', nullable=False) # completed, pending, cancelled
     source = Column(String(20), default='dashboard', nullable=False) # 'dashboard', 'whatsapp_bot'
     notes = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), index=True)

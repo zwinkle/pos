@@ -4,6 +4,7 @@ from typing import Optional, List
 
 from app.db import models_db
 from app.schemas import product_schemas
+from app.schemas.common_schemas import PaginatedResponse
 
 # Impor crud_stock untuk mencatat log inventaris awal jika diperlukan
 # from . import crud_stock # Akan menyebabkan circular import jika crud_stock juga impor crud_product
@@ -32,12 +33,13 @@ def get_products(
         search: Optional[str] = None,
         only_active: bool = True,
         load_category: bool = False
-    ) -> List[models_db.Product]:
-    """Mengambil daftar produk dengan filter dan paginasi."""
+    ) -> dict: # Ubah tipe kembalian ke dict atau skema PaginatedResponse jika Anda parsing di sini
+    """Mengambil daftar produk dengan filter, paginasi, dan total count."""
     query = db.query(models_db.Product)
 
     if load_category:
         query = query.options(joinedload(models_db.Product.category))
+
     if only_active:
         query = query.filter(models_db.Product.is_active == True)
     if category_id is not None:
@@ -45,7 +47,11 @@ def get_products(
     if search:
         query = query.filter(models_db.Product.name.ilike(f"%{search}%"))
 
-    return query.order_by(models_db.Product.name).offset(skip).limit(limit).all()
+    total = query.count() # Hitung total sebelum paginasi
+    
+    data = query.order_by(models_db.Product.name).offset(skip).limit(limit).all()
+    
+    return {"total": total, "data": data}
 
 def create_product(db: Session, product: product_schemas.ProductCreate, user_id: Optional[int] = None) -> models_db.Product:
     """Membuat produk baru."""
@@ -173,3 +179,32 @@ def update_product_stock_internal(db: Session, product_id: int, quantity_change:
     db.refresh(db_product)
 
     return db_product
+
+def get_product_suggestions(
+        db: Session,
+        query_str: Optional[str] = None,
+        limit: int = 10,
+        only_active: bool = True,
+        load_category: bool = False
+    ) -> List[models_db.Product]: # Tipe kembalian adalah List[models_db.Product]
+    """Mengambil daftar saran produk berdasarkan nama atau SKU."""
+    db_query = db.query(models_db.Product)
+
+    if load_category:
+        db_query = db_query.options(joinedload(models_db.Product.category))
+
+    if only_active:
+        db_query = db_query.filter(models_db.Product.is_active == True)
+    
+    if query_str:
+        search_term = f"%{query_str}%"
+        # Anda bisa sesuaikan logika pencarian di sini (nama saja, atau nama dan SKU)
+        from sqlalchemy import or_ # Impor or_ jika belum
+        db_query = db_query.filter(
+            or_(
+                models_db.Product.name.ilike(search_term),
+                models_db.Product.sku.ilike(search_term) # Opsional: cari juga di SKU
+            )
+        )
+    
+    return db_query.order_by(models_db.Product.name).limit(limit).all() # Ini mengembalikan list

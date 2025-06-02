@@ -1,6 +1,6 @@
 # backend/app/crud/crud_order.py
 from sqlalchemy.orm import Session, joinedload, selectinload
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 import shortuuid # pip install shortuuid
 
@@ -18,15 +18,17 @@ def generate_order_number() -> str:
     return f"INV-{date_prefix}-{random_suffix}"
 
 def get_order(db: Session, order_id: int, load_items: bool = True, load_user: bool = False) -> Optional[models_db.Order]:
-    """Mengambil satu order berdasarkan ID, dengan opsi memuat item dan user."""
     query = db.query(models_db.Order)
-
     if load_items:
-        # Menggunakan selectinload untuk efisiensi memuat relasi many (items)
-        query = query.options(selectinload(models_db.Order.items).joinedload(models_db.OrderItem.product).joinedload(models_db.Product.category))
+        # Pastikan ini memuat product di dalam order_items juga
+        query = query.options(
+            selectinload(models_db.Order.items) # Memuat items
+            .selectinload(models_db.OrderItem.product) # Memuat product di dalam setiap item
+            .joinedload(models_db.Product.category) # Opsional: memuat kategori produk jika diperlukan di detail
+        )
     if load_user:
         query = query.options(joinedload(models_db.Order.processed_by_user))
-    
+
     return query.filter(models_db.Order.order_id == order_id).first()
 
 def get_order_by_order_number(db: Session, order_number: str) -> Optional[models_db.Order]:
@@ -42,33 +44,37 @@ def get_orders(
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
         status: Optional[str] = None,
-        load_items: bool = False # Opsi untuk memuat item pesanan
-    ) -> List[models_db.Order]:
-    """Mengambil daftar order dengan filter dan paginasi."""
+        load_items: bool = False
+    ) -> Dict[str, Any]:
+    """Mengambil daftar order dengan filter, paginasi, dan total count."""
     query = db.query(models_db.Order)
 
     if load_items:
         query = query.options(selectinload(models_db.Order.items).joinedload(models_db.OrderItem.product))
+
     if user_id is not None:
         query = query.filter(models_db.Order.user_id == user_id)
     if start_date:
         query = query.filter(models_db.Order.created_at >= start_date)
     if end_date:
-        # Tambahkan 1 hari ke end_date jika ingin inklusif hingga akhir hari tersebut
-        # from datetime import timedelta
-        # query = query.filter(models_db.Order.created_at < (end_date + timedelta(days=1)))
-        query = query.filter(models_db.Order.created_at <= end_date)
+        # Untuk end_date yang inklusif hingga akhir hari
+        end_datetime_inclusive = datetime.combine(end_date, datetime.max.time())
+        query = query.filter(models_db.Order.created_at <= end_datetime_inclusive)
     if status:
         query = query.filter(models_db.Order.order_status == status)
 
-    return query.order_by(models_db.Order.created_at.desc()).offset(skip).limit(limit).all()
+    total = query.count()
+    
+    orders_data = query.order_by(models_db.Order.created_at.desc()).offset(skip).limit(limit).all()
+
+    return {"total": total, "data": orders_data}
 
 def create_order(
         db: Session, order_in: order_schemas.OrderCreate, current_user_id: Optional[int] = None
     ) -> models_db.Order:
     """
-    Membuat order baru, termasuk item order, memperbarui stok produk, dan mencatat log inventaris.
-    Ini adalah operasi transaksional yang kompleks.
+    Membuat order baru, termasuk item order, memperbarui stok produk, 
+    dan mencatat log inventaris dengan status kondisional.
     """
     total_amount = 0
     db_order_items = []
@@ -83,7 +89,7 @@ def create_order(
         if db_product.current_stock < item_in.quantity:
             raise ValueError(f"Stok produk '{db_product.name}' tidak mencukupi (tersisa: {db_product.current_stock}, diminta: {item_in.quantity}).")
 
-        price_at_transaction = db_product.selling_price # Ambil harga jual saat ini
+        price_at_transaction = db_product.selling_price
         subtotal = price_at_transaction * item_in.quantity
         total_amount += subtotal
 
@@ -92,13 +98,19 @@ def create_order(
             quantity=item_in.quantity,
             price_at_transaction=price_at_transaction,
             subtotal=subtotal
-            # order_id akan diisi setelah db_order dibuat
         )
         db_order_items.append(db_order_item)
 
-    # 2. Buat objek Order utama
+    # 2. Tentukan status order berdasarkan metode pembayaran
+    initial_order_status = "completed" # Default jika tidak ada kondisi lain
+    if order_in.payment_method and order_in.payment_method.lower() != "cash":
+        initial_order_status = "pending"
+    # Anda bisa menambahkan logika lebih lanjut di sini jika perlu
+    # misalnya, jika payment_method null, bisa dianggap 'pending' atau 'draft'
+
+    # 3. Buat objek Order utama
     order_number = generate_order_number()
-    while get_order_by_order_number(db, order_number): # Pastikan nomor order unik
+    while get_order_by_order_number(db, order_number):
         order_number = generate_order_number()
 
     db_order = models_db.Order(
@@ -106,43 +118,37 @@ def create_order(
         user_id=current_user_id,
         total_amount=total_amount,
         payment_method=order_in.payment_method,
-        order_status="completed", # Atau 'pending' jika ada proses pembayaran terpisah
+        order_status=initial_order_status, # <<--- STATUS KONDISIONAL DITERAPKAN DI SINI
         source=order_in.source,
         notes=order_in.notes
     )
     db.add(db_order)
+    db.flush() # Dapatkan order_id untuk db_order sebelum menambah items
 
-    # Tidak commit dulu, tunggu semua operasi terkait selesai
-    # 3. Kaitkan OrderItems dengan Order dan kurangi stok produk & catat log
-    # Flush untuk mendapatkan order_id untuk db_order
-    db.flush()
-
-    for i, db_item_to_add in enumerate(db_order_items):
+    # 4. Kaitkan OrderItems dengan Order, kurangi stok produk & catat log
+    for db_item_to_add in db_order_items:
         db_item_to_add.order_id = db_order.order_id
         db.add(db_item_to_add)
+        try:
+            record_sale_stock_deduction(
+                db,
+                product_id=db_item_to_add.product_id,
+                quantity_sold=db_item_to_add.quantity,
+                order_id=db_order.order_id,
+                user_id=current_user_id
+            )
+        except ValueError as e:
+            db.rollback()
+            raise ValueError(f"Gagal memproses item '{get_product(db, db_item_to_add.product_id).name}': {str(e)}")
 
-    # Kurangi stok dan catat log inventaris untuk penjualan
-    try:
-        record_sale_stock_deduction(
-            db,
-            product_id=db_item_to_add.product_id,
-            quantity_sold=db_item_to_add.quantity,
-            order_id=db_order.order_id,
-            user_id=current_user_id
-        )
-    except ValueError as e:
-        db.rollback() # Rollback semua jika ada masalah pengurangan stok
-        raise ValueError(f"Gagal memproses item '{get_product(db, db_item_to_add.product_id).name}': {str(e)}")
-
-    # 4. Commit semua perubahan jika berhasil
+    # 5. Commit semua perubahan jika berhasil
     db.commit()
     db.refresh(db_order)
-
-    # Refresh item juga jika ingin mengembalikannya dengan detail lengkap (opsional di sini)
+    # Opsional: refresh items jika diperlukan dalam respons langsung
     for item in db_order.items:
         db.refresh(item)
-    if item.product: # Jika relasi produk sudah dimuat
-        db.refresh(item.product)
+        if item.product:
+            db.refresh(item.product)
 
     return db_order
 

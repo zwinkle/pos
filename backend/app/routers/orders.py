@@ -5,6 +5,7 @@ from typing import List, Optional
 from datetime import date # Untuk filter tanggal
 
 from app.db.database import get_db
+from app.schemas.common_schemas import PaginatedResponse
 from app.schemas import order_schemas
 from app.crud import crud_order
 from app.core.security import get_current_active_user
@@ -33,40 +34,44 @@ def create_new_order(
         # Log error e
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred while creating the order.")
 
-@router.get("/", response_model=List[order_schemas.Order], tags=["Orders"])
+@router.get("/", response_model=PaginatedResponse[order_schemas.Order], tags=["Orders"]) # Update response_model
 def read_all_orders(
-    skip: int = 0,
-    limit: int = Query(default=50, ge=1, le=200),
-    user_id_filter: Optional[int] = Query(None, alias="userId", description="Filter by user ID (admin only)"),
-    start_date_filter: Optional[date] = Query(None, alias="startDate", description="Filter by start date (YYYY-MM-DD)"),
-    end_date_filter: Optional[date] = Query(None, alias="endDate", description="Filter by end date (YYYY-MM-DD)"),
-    status_filter: Optional[str] = Query(None, alias="status", description="Filter by order status"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+        skip: int = 0,
+        limit: int = Query(default=50, ge=1, le=200),
+        user_id_filter: Optional[int] = Query(None, alias="userId", description="Filter by user ID (admin only)"),
+        start_date_filter: Optional[date] = Query(None, alias="startDate", description="Filter by start date (YYYY-MM-DD)"),
+        end_date_filter: Optional[date] = Query(None, alias="endDate", description="Filter by end date (YYYY-MM-DD)"),
+        status_filter: Optional[str] = Query(None, alias="status", description="Filter by order status"),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)
     ):
     """
-    Mendapatkan daftar semua pesanan dengan filter.
+    Mendapatkan daftar semua pesanan dengan filter dan pagination.
     Admin bisa melihat semua, user biasa hanya pesanannya sendiri (jika user_id_filter tidak diisi).
     """
     effective_user_id = None
     if current_user.role == "admin":
-        effective_user_id = user_id_filter
-    elif user_id_filter is not None and user_id_filter != current_user.user_id : # User biasa mencoba filter user lain
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions to view other user's orders")
-    elif user_id_filter is None: # User biasa tanpa filter, lihat pesanannya sendiri
+        effective_user_id = user_id_filter # user_id_filter adalah nama parameter query
+    elif user_id_filter is not None and user_id_filter != current_user.user_id :
+         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions to view other user's orders")
+    elif user_id_filter is None and current_user.role != "admin":
         effective_user_id = current_user.user_id
-        orders = crud_order.get_orders(
-            db,
-            skip=skip,
-            limit=limit,
-            user_id=effective_user_id,
-            start_date=start_date_filter,
-            end_date=end_date_filter,
-            status=status_filter,
-            load_items=True # Muat item untuk daftar pesanan
-        )
 
-    return orders
+    orders_result = crud_order.get_orders(
+        db,
+        skip=skip,
+        limit=limit,
+        user_id=effective_user_id,
+        start_date=start_date_filter, # start_date_filter adalah nama parameter query
+        end_date=end_date_filter,     # end_date_filter adalah nama parameter query
+        status=status_filter,         # status_filter adalah nama parameter query
+        load_items=True
+    )
+
+    return PaginatedResponse[order_schemas.Order](
+        total=orders_result["total"],
+        data=orders_result["data"]
+    )
 
 @router.get("/{order_id}", response_model=order_schemas.Order, tags=["Orders"])
 def read_order_by_id(
@@ -74,13 +79,11 @@ def read_order_by_id(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_active_user)
     ):
-    """
-    Mendapatkan detail pesanan berdasarkan ID.
-    Admin bisa melihat semua, user biasa hanya pesanannya sendiri.
-    """
-    db_order = crud_order.get_order(db, order_id=order_id, load_items=True, load_user=True)
+    # Pastikan crud_order.get_order melakukan eager loading untuk items dan product di dalam items
+    db_order = crud_order.get_order(db, order_id=order_id, load_items=True, load_user=True) # load_items=True penting
     if db_order is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+
     if current_user.role != "admin" and db_order.user_id != current_user.user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions to view this order")
     

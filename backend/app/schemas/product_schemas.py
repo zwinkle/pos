@@ -1,14 +1,9 @@
 # backend/app/schemas/product_schemas.py
-from pydantic import BaseModel, Field
-from typing import Optional, List, ClassVar
+from pydantic import BaseModel, Field, ConfigDict # Pastikan ConfigDict diimpor
+from typing import Optional, List
 from datetime import datetime
-from .category_schemas import Category
+from .category_schemas import Category # Impor Category schema
 
-# Impor Category schema jika ingin menampilkannya secara nested
-# Anda perlu membuat category_schemas.py terlebih dahulu
-# from .category_schemas import Category  # Akan ada circular import jika langsung, tangani di respons model
-
-# Properti dasar untuk produk
 class ProductBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255, description="Nama produk")
     description: Optional[str] = Field(None, description="Deskripsi produk")
@@ -19,12 +14,10 @@ class ProductBase(BaseModel):
     low_stock_threshold: Optional[int] = Field(0, ge=0, description="Batas minimum stok untuk notifikasi")
     image_url: Optional[str] = Field(None, max_length=255, description="URL gambar produk")
 
-# Properti untuk membuat produk baru
 class ProductCreate(ProductBase):
     sku: Optional[str] = Field(None, max_length=50, description="SKU produk, harus unik jika diisi")
     current_stock: int = Field(0, ge=0, description="Jumlah stok awal produk")
 
-# Properti untuk memperbarui produk (semua opsional)
 class ProductUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
@@ -33,24 +26,24 @@ class ProductUpdate(BaseModel):
     selling_price: Optional[float] = Field(None, ge=0)
     sku: Optional[str] = Field(None, max_length=50)
     unit_of_measurement: Optional[str] = Field(None, max_length=20)
-    current_stock: Optional[int] = Field(None, ge=0) # Biasanya stok diupdate via endpoint khusus stok
+    # current_stock tidak diupdate di sini
     low_stock_threshold: Optional[int] = Field(None, ge=0)
     image_url: Optional[str] = Field(None, max_length=255)
     is_active: Optional[bool] = None
 
-# Properti yang akan dikembalikan oleh API saat membaca data produk
-class Product(ProductBase):
+class Product(ProductBase): # Skema dasar produk untuk respons
     product_id: int
     sku: Optional[str]
     current_stock: int
     is_active: bool
     created_at: datetime
     updated_at: datetime
-    # category: Optional[Category] = None # Jika ingin menampilkan detail kategori
 
-class Config:
-    from_attributes = True
+    model_config = ConfigDict(from_attributes=True) # <--- PENTING
 
-# Skema untuk respons yang menyertakan detail kategori (setelah category_schemas dibuat)
-class ProductWithCategory(Product):
+class ProductWithCategory(Product): # Mewarisi Product, jadi juga mewarisi model_config
     category: Optional[Category] = None
+
+    model_config = ConfigDict(from_attributes=True)
+    # Pastikan Category juga punya model_config = ConfigDict(from_attributes=True)
+    # di file category_schemas.py

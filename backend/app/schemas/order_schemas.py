@@ -1,5 +1,5 @@
 # backend/app/schemas/order_schemas.py
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from .product_schemas import Product # Untuk menampilkan detail produk dalam item order
@@ -21,6 +21,8 @@ class OrderItem(OrderItemBase):
     price_at_transaction: float = Field(..., description="Harga produk saat transaksi")
     subtotal: float = Field(..., description="Subtotal untuk item ini (quantity * price_at_transaction)")
     product: Optional[Product] = None # Untuk menampilkan detail produk
+
+    model_config = ConfigDict(from_attributes=True)
 
 class Config:
     from_attributes = True
@@ -51,6 +53,8 @@ class Order(OrderBase):
     created_at: datetime
     updated_at: datetime
     items: List[OrderItem] = []
+
+    model_config = ConfigDict(from_attributes=True)
 
 class Config:
     rom_attributes = True

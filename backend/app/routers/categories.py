@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.db.database import get_db
+from app.schemas.common_schemas import PaginatedResponse
 from app.schemas import category_schemas
 from app.crud import crud_category
 from app.core.security import get_current_active_user # Proteksi endpoint jika perlu
@@ -30,19 +31,21 @@ def create_new_category(
 
     return crud_category.create_category(db=db, category=category_in)
 
-@router.get("/", response_model=List[category_schemas.Category], tags=["Categories"])
+@router.get("/", response_model=PaginatedResponse[category_schemas.Category], tags=["Categories"]) # Update response_model
 def read_all_categories(
         skip: int = 0,
         limit: int = Query(default=100, ge=1, le=200),
         db: Session = Depends(get_db)
-        # Tidak perlu current_user jika endpoint ini publik atau untuk semua user terautentikasi
     ):
     """
-    Mendapatkan daftar semua kategori.
+    Mendapatkan daftar semua kategori dengan pagination.
     """
-    categories = crud_category.get_categories(db, skip=skip, limit=limit)
+    categories_result = crud_category.get_categories(db, skip=skip, limit=limit)
 
-    return categories
+    return PaginatedResponse[category_schemas.Category](
+        total=categories_result["total"],
+        data=categories_result["data"]
+    )
 
 @router.get("/{category_id}", response_model=category_schemas.Category, tags=["Categories"])
 def read_category_by_id(
@@ -63,22 +66,29 @@ def update_existing_category(
         category_id: int,
         category_in: category_schemas.CategoryUpdate,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_active_user) # Contoh proteksi
+        current_user: User = Depends(get_current_active_user)
     ):
-    """
-    Memperbarui kategori yang sudah ada.
-    """
     db_category = crud_category.get_category(db, category_id=category_id)
     if db_category is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
 
-    # Cek jika nama baru sudah digunakan oleh kategori lain
+    # Cek jika nama baru (category_in.name) diisi DAN berbeda dengan nama lama (db_category.name)
     if category_in.name and category_in.name != db_category.name:
+        # Hanya jika nama diubah, cek apakah nama baru sudah digunakan oleh kategori lain
         existing_category_with_name = crud_category.get_category_by_name(db, name=category_in.name)
-    if existing_category_with_name and existing_category_with_name.category_id != category_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Category name already exists")
-
-    return crud_category.update_category(db=db, category_id=category_id, category_in=category_in)
+        if existing_category_with_name and existing_category_with_name.category_id != category_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Category name '{category_in.name}' already exists for another category."
+            )
+    
+    # Lanjutkan dengan update menggunakan crud_category.update_category
+    # Fungsi crud_category.update_category akan menangani field mana saja yang diupdate
+    updated_category = crud_category.update_category(db=db, category_id=category_id, category_in=category_in)
+    if updated_category is None: # Seharusnya tidak terjadi jika db_category ditemukan
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found during update process")
+    
+    return updated_category
 
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Categories"])
 def delete_existing_category(

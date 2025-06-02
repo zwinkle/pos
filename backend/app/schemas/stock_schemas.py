@@ -1,5 +1,5 @@
 # backend/app/schemas/stock_schemas.py
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 from datetime import datetime
 
@@ -18,32 +18,28 @@ class StockAdjustment(BaseModel):
     new_quantity: int = Field(..., ge=0, description="Jumlah stok baru setelah penyesuaian")
     remarks: str = Field(..., min_length=1, description="Alasan penyesuaian stok (misal: Stok Opname, Barang Rusak)")
 
-# Properti dasar untuk Inventory Log
 class InventoryLogBase(BaseModel):
     product_id: int
     change_type: str = Field(..., description="Tipe perubahan stok (misal: 'stock_in', 'sale', 'adjustment')")
-    quantity_change: int # Bisa positif atau negatif
+    quantity_change: int
     remarks: Optional[str] = None
 
-# Properti untuk membuat Inventory Log (biasanya dibuat secara internal oleh sistem)
 class InventoryLogCreate(InventoryLogBase):
     user_id: Optional[int] = None
-    transaction_id: Optional[int] = None # Jika perubahan stok terkait order
+    transaction_id: Optional[int] = None
     stock_before: int
     stock_after: int
 
-# Properti yang akan dikembalikan oleh API saat membaca data Inventory Log
-class InventoryLog(InventoryLogBase):
+class InventoryLog(InventoryLogBase): # Skema yang digunakan untuk respons
     log_id: int
     user_id: Optional[int] = None
     transaction_id: Optional[int] = None
     stock_before: int
     stock_after: int
     created_at: datetime
+    # Anda bisa menambahkan detail produk atau user jika diperlukan untuk respons
+    # from .product_schemas import Product
+    # product: Optional[Product] = None
 
-# Anda bisa menambahkan detail produk atau user jika diperlukan untuk respons
-# from .product_schemas import Product
-# product: Optional[Product] = None
-
-class Config:
-    from_attributes = True
+    # Konfigurasi untuk Pydantic v2
+    model_config = ConfigDict(from_attributes=True) 

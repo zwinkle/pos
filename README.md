@@ -121,10 +121,13 @@ pos/
 │   │   │   ├── ReportsPage.js
 │   │   │   └── LoginPage.js
 │   │   ├── services/                   # Fungsi untuk memanggil API backend
+|   |   |   ├── api.js
 │   │   │   ├── authService.js
 │   │   │   ├── productService.js
+|   |   |   ├── categoryService.js
 │   │   │   ├── orderService.js
-│   │   │   └── reportService.js
+│   │   │   ├── reportService.js
+|   |   |   └── stockService.js
 │   │   ├── contexts/                   # State management (React Context API, atau Redux/Zustand jika kompleks)
 │   │   │   └── AuthContext.js
 │   │   ├── hooks/                      # Custom React Hooks

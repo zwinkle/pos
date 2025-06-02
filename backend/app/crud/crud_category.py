@@ -1,21 +1,27 @@
 # backend/app/crud/crud_category.py
 from sqlalchemy.orm import Session
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 from app.db import models_db
 from app.schemas import category_schemas
 
 def get_category(db: Session, category_id: int) -> Optional[models_db.Category]:
     """Mengambil satu kategori berdasarkan ID."""
+    
     return db.query(models_db.Category).filter(models_db.Category.category_id == category_id).first()
 
 def get_category_by_name(db: Session, name: str) -> Optional[models_db.Category]:
     """Mengambil satu kategori berdasarkan nama."""
+
     return db.query(models_db.Category).filter(models_db.Category.name == name).first()
 
-def get_categories(db: Session, skip: int = 0, limit: int = 100) -> List[models_db.Category]:
-    """Mengambil daftar kategori dengan paginasi."""
-    return db.query(models_db.Category).order_by(models_db.Category.name).offset(skip).limit(limit).all()
+def get_categories(db: Session, skip: int = 0, limit: int = 100) -> Dict[str, Any]:
+    """Mengambil daftar kategori dengan paginasi dan total count."""
+    query = db.query(models_db.Category)
+    total = query.count()
+    categories_data = query.order_by(models_db.Category.name).offset(skip).limit(limit).all()
+
+    return {"total": total, "data": categories_data}
 
 def create_category(db: Session, category: category_schemas.CategoryCreate) -> models_db.Category:
     """Membuat kategori baru."""

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.db.database import get_db
+from app.schemas.common_schemas import PaginatedResponse
 from app.schemas import stock_schemas # Berisi StockIn, StockAdjustment, InventoryLog
 from app.crud import crud_stock, crud_product
 from app.core.security import get_current_active_user
@@ -47,20 +48,26 @@ def adjust_product_stock(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred during stock adjustment.")
 
-@router.get("/log/{product_id}", response_model=List[stock_schemas.InventoryLog], tags=["Stock Management"])
+@router.get("/log/{product_id}", response_model=PaginatedResponse[stock_schemas.InventoryLog], tags=["Stock Management"]) # Update response_model
 def read_inventory_logs_for_product(
         product_id: int,
         skip: int = 0,
         limit: int = Query(default=100, ge=1, le=200),
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_active_user) # Akses log mungkin perlu otorisasi
+        current_user: User = Depends(get_current_active_user)
     ):
     """
-    Melihat histori pergerakan stok untuk produk tertentu.
+    Melihat histori pergerakan stok untuk produk tertentu dengan pagination.
     """
-    db_product = crud_product.get_product(db, product_id=product_id)
+    db_product = crud_product.get_product(db, product_id=product_id) # Tetap validasi produk
     if not db_product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Product with ID {product_id} not found")
 
-    logs = crud_stock.get_inventory_logs_by_product_id(db, product_id=product_id, skip=skip, limit=limit)
-    return logs
+    logs_result = crud_stock.get_inventory_logs_by_product_id(
+        db, product_id=product_id, skip=skip, limit=limit
+    )
+
+    return PaginatedResponse[stock_schemas.InventoryLog](
+        total=logs_result["total"],
+        data=logs_result["data"]
+    )

@@ -1,6 +1,6 @@
 # backend/app/crud/crud_stock.py
 from sqlalchemy.orm import Session
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 from app.db import models_db
 from app.schemas import stock_schemas # Berisi StockIn, StockAdjustment, InventoryLogCreate, InventoryLog
@@ -25,16 +25,21 @@ def create_inventory_log(db: Session, log_entry: stock_schemas.InventoryLogCreat
 
 def get_inventory_logs_by_product_id(
         db: Session, product_id: int, skip: int = 0, limit: int = 100
-    ) -> List[models_db.InventoryLog]:
-    """Mengambil daftar log inventaris untuk produk tertentu."""
-    return (
-        db.query(models_db.InventoryLog)
-        .filter(models_db.InventoryLog.product_id == product_id)
+    ) -> Dict[str, Any]:
+    """Mengambil daftar log inventaris untuk produk tertentu dengan paginasi dan total count."""
+    query = db.query(models_db.InventoryLog).filter(models_db.InventoryLog.product_id == product_id)
+    
+    total = query.count()
+    
+    logs_data = (
+        query
         .order_by(models_db.InventoryLog.created_at.desc())
         .offset(skip)
         .limit(limit)
         .all()
     )
+
+    return {"total": total, "data": logs_data}
 
 def add_stock(db: Session, stock_in_data: stock_schemas.StockIn, user_id: Optional[int] = None) -> models_db.InventoryLog:
     """

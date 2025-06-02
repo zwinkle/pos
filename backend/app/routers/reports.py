@@ -8,11 +8,8 @@ from app.db.database import get_db
 from app.core.security import get_current_active_user
 from app.schemas.user_schemas import User
 
-# Anda perlu membuat skema Pydantic khusus untuk output laporan jika diperlukan
-# from app.schemas import report_schemas
-
-# Anda juga perlu membuat fungsi CRUD atau service khusus untuk mengambil data laporan
-# from app.crud import crud_report # atau app.services import report_service
+from app.schemas import report_schemas
+from app.crud import crud_report # atau app.services import report_service
 
 router = APIRouter()
 
@@ -125,6 +122,20 @@ def get_low_stock_report(
         # Log error
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to generate low stock report: {e}")
 
+@router.get("/dashboard-summary", response_model=report_schemas.DashboardSummary, tags=["Reports"])
+def get_main_dashboard_summary(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user) # Pastikan user terautentikasi
+    ):
+    """
+    Mengambil data ringkasan untuk dashboard utama.
+    """
+    try:
+        summary = crud_report.get_dashboard_summary(db) # Panggil fungsi CRUD yang baru dibuat
+        return summary
+    except Exception as e:
+        # logger.error(f"Error getting dashboard summary: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to retrieve dashboard summary")
 # Anda bisa menambahkan endpoint lain seperti:
 # - Laporan profit (perlu harga beli produk saat transaksi atau rata-rata)
 # - Laporan produk terlaris
