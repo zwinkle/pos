@@ -153,32 +153,34 @@ def create_order(
     return db_order
 
 def update_order_status(db: Session, order_id: int, new_status: str) -> Optional[models_db.Order]:
-    """Memperbarui status order."""
-    db_order = get_order(db, order_id=order_id, load_items=False) # Tidak perlu load item untuk update status
+    db_order = get_order(db, order_id=order_id, load_items=False) # Tidak perlu load item untuk hanya update status
     if not db_order:
-        return None
+        return None # Router akan menangani ini dan mengubahnya menjadi 404
 
-    # Validasi status baru (opsional, bisa divalidasi di router/service)
-    allowed_statuses = ["pending", "completed", "cancelled", "shipped", "delivered"]
+    allowed_statuses = ["pending", "completed", "cancelled", "shipped", "delivered"] # Definisikan status yang diizinkan
     if new_status not in allowed_statuses:
-        raise ValueError(f"Status '{new_status}' tidak valid.")
+        raise ValueError(f"Status '{new_status}' is not a valid order status.")
 
     # Logika tambahan jika status berubah (misal: pengembalian stok jika 'cancelled')
     if new_status == "cancelled" and db_order.order_status != "cancelled":
         # TODO: Implementasikan logika pengembalian stok jika order dibatalkan
-        # Ini melibatkan penambahan stok kembali ke produk dan pembuatan inventory log tipe 'return' atau 'cancellation_restock'
-        # Contoh:
-        # for item in db_order.items:
-        #     # Panggil fungsi untuk menambah stok dan log
-        #     pass
         print(f"PERINGATAN: Order {db_order.order_number} dibatalkan. Implementasikan logika pengembalian stok.")
+        # Pastikan jika ada error di sini, transaksi di-rollback atau ditangani.
 
     db_order.order_status = new_status
-    db.add(db_order)
-    db.commit()
-    db.refresh(db_order)
+    db.add(db_order) # Tandai untuk disimpan
+    
+    try:
+        db.commit()
+        db.refresh(db_order) # Muat ulang state dari DB setelah commit
+        return db_order
+    except Exception as e:
+        db.rollback()
+        # logger.error(f"Failed to commit order status update for order ID {order_id}: {e}", exc_info=True)
+        print(f"Failed to commit order status update for order ID {order_id}: {e}")
+        # Anda bisa raise error spesifik di sini atau biarkan router yang menangani None jika refresh gagal
 
-    return db_order
+        return None # Atau raise error
 
 # Anda bisa menambahkan fungsi update order yang lebih umum jika perlu
 # def update_order(db: Session, order_id: int, order_in: order_schemas.OrderUpdate) -> Optional[models_db.Order]:

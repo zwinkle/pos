@@ -91,26 +91,52 @@ def read_order_by_id(
 
 @router.patch("/{order_id}/status", response_model=order_schemas.Order, tags=["Orders"])
 def update_order_status_endpoint(
-        order_id: int,
-        status_update: order_schemas.OrderUpdate, # Menggunakan OrderUpdate, ambil status dari sana
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_active_user) # Umumnya hanya admin/staff
-    ):
-    """
-    Memperbarui status pesanan.
-    """
-    # if current_user.role not in ["admin", "staff"]:
-    #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
-    if status_update.order_status is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New status is required")
+    order_id: int,
+    status_update: order_schemas.OrderUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    if status_update.order_status is None: # Validasi input dari request body
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New status is required in the request body.")
 
     try:
-        updated_order = crud_order.update_order_status(db=db, order_id=order_id, new_status=status_update.order_status)
-        if updated_order is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
-            return crud_order.get_order(db, order_id=updated_order.order_id, load_items=True, load_user=True)
-    except ValueError as e:
+        # Panggil fungsi CRUD untuk update status
+        db_order_updated = crud_order.update_order_status(
+            db=db, 
+            order_id=order_id, 
+            new_status=status_update.order_status
+        )
+
+        if db_order_updated is None:
+            # Ini berarti crud_order.update_order_status mengembalikan None,
+            # yang biasanya terjadi jika order awal tidak ditemukan.
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Order with ID {order_id} not found.")
+
+        # Jika Anda ingin respons menyertakan item-item pesanan yang sudah di-load (seperti pada get_order)
+        # Anda bisa memanggil get_order lagi di sini.
+        # Namun, jika update_order_status sudah me-refresh objek db_order_updated dengan benar,
+        # dan skema Order tidak secara default mengharapkan items yang selalu ter-load penuh
+        # dari operasi update status, maka db_order_updated saja cukup.
+        # Untuk konsistensi dengan get_order by ID, mari kita panggil get_order:
+
+        # return db_order_updated # Ini akan valid jika order_schemas.Order tidak *membutuhkan* items yang selalu ada
+                                 # atau jika update_order_status me-load relasi items.
+
+        # Untuk memastikan respons konsisten dengan GET /orders/{order_id} (yang me-load items):
+        fully_loaded_order = crud_order.get_order(db, order_id=db_order_updated.order_id, load_items=True, load_user=True)
+        if fully_loaded_order is None: # Seharusnya tidak terjadi jika update berhasil
+             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to reload order after update.")
+        return fully_loaded_order
+
+    except ValueError as e: # Misal, status tidak valid
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except HTTPException: # Teruskan HTTPException yang sudah ada
+        raise
+    except Exception as e:
+        # logger.error(f"Error updating order status: {e}", exc_info=True) # Sebaiknya ada logger
+        print(f"Unexpected error updating order status: {e}") # Untuk debug cepat
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred while updating order status.")
+
 
 # Anda bisa menambahkan endpoint PUT untuk update order secara keseluruhan jika diperlukan
 # menggunakan skema order_schemas.OrderUpdate yang lebih lengkap.
